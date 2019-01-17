@@ -1,0 +1,148 @@
+package polygon
+
+import "fmt"
+import "math"
+
+type VGraph struct {
+	Vertices map[uint32]Vertex
+	AdjList  map[uint32]([]uint32)
+}
+
+func (g VGraph) NewGraph() VGraph {
+	return VGraph{map[uint32]Vertex{}, map[uint32]([]uint32){}}
+}
+
+func ListToMap(l []Vertex) map[uint32]Vertex {
+	m := map[uint32]Vertex{}
+	for _, v := range l {
+		m[v.Id] = v
+	}
+	return m
+}
+
+func MaxKey(m map[uint32]Vertex) uint32 {
+	max := uint32(0)
+	for k, _ := range m {
+		if k > max {
+			max = k
+		} else if k == max {
+			fmt.Printf("\nTwo Have Same Id\n")
+		}
+	}
+	return max
+}
+
+func VisibilityGraphFrom(spaceAcc *Space, spaceConf *Space) VGraph {
+	g := VGraph{}.NewGraph()
+	lEdges := spaceAcc.ListOfEdges()
+	fmt.Printf("\n%v\n", lEdges)
+	lVertices := spaceAcc.ListOfVertices()
+	g.Vertices = ListToMap(lVertices)
+	for _, pol := range spaceAcc.Polygons {
+		for k, _ := range pol.Vertices {
+			for _, i := range pol.Edges[k] {
+				g.AdjList[k] = append(g.AdjList[k], i)
+				g.AdjList[i] = append(g.AdjList[i], k)
+			}
+		}
+	}
+	for i := 0; i < len(lVertices)-1; i++ {
+		for j := i + 1; j < len(lVertices); j++ {
+			b := false
+			e := Edge{lVertices[i], lVertices[j]}
+			for _, edge := range lEdges {
+				v, b1 := IntersectLarge(edge, e)
+				if !v.IsEqual(e.Begin()) && !v.IsEqual(e.End()) {
+					b = b1 || b
+				}
+			}
+			if !b {
+				b2 := false
+				v := Vertex{0, (lVertices[i].X + lVertices[j].X) / 2, (lVertices[i].Y + lVertices[j].Y) / 2}
+				vdir := Vertex{0, e.Begin().X - e.End().X, e.Begin().Y - e.End().Y}
+				coeff := math.Pow(10, -3) / Norm(vdir)
+				vorth := Vertex{0, coeff * vdir.Y, coeff * (-vdir.X)}
+				v1 := Vertex{0, v.X + vorth.X, v.Y + vorth.Y}
+				v2 := Vertex{0, v.X - vorth.X, v.Y - vorth.Y}
+				if v1.IsInsideOneOf(&(spaceConf.Polygons)) && v2.IsInsideOneOf(&(spaceConf.Polygons)) {
+					b2 = true
+					break
+				}
+
+				if !b2 {
+					vidi := lVertices[i].Id
+					vidj := lVertices[j].Id
+					g.AdjList[vidi] = append(g.AdjList[vidi], vidj)
+					g.AdjList[vidj] = append(g.AdjList[vidj], vidi)
+				}
+			}
+		}
+	}
+	return g
+}
+
+func (g VGraph) AddBeginEnd(vBegin, vEnd *Vertex, spaceAcc, spaceConf *Space) VGraph {
+	lEdges := spaceAcc.ListOfEdges()
+	nId := MaxKey(g.Vertices)
+	vBegin.Id = nId + 1
+	vEnd.Id = nId + 2
+	g.Vertices[nId+1] = *vBegin
+	g.Vertices[nId+2] = *vEnd
+	for i := uint32(1); i <= uint32(2); i++ {
+		for k, v := range g.Vertices {
+			if k < nId+i {
+				e := Edge{g.Vertices[nId+i], v}
+				b := false
+				for _, edge := range lEdges {
+					_, b1 := IntersectStrict(e, edge)
+					b = b || b1
+				}
+				if !b {
+					vmid := Vertex{0, (g.Vertices[nId+i].X + v.X) / 2, (g.Vertices[nId+i].Y + v.Y) / 2}
+					b2 := false
+					for _, pol := range spaceConf.Polygons {
+						if vmid.IsInside(&pol) {
+							b2 = true
+							break
+						}
+					}
+					if !b2 {
+						vidi := nId + i
+						vidj := v.Id
+						g.AdjList[vidi] = append(g.AdjList[vidi], vidj)
+						g.AdjList[vidj] = append(g.AdjList[vidj], vidi)
+					}
+				}
+			}
+		}
+	}
+	return g
+}
+
+func (g VGraph) PathRec(currId, eId uint32, seen *map[uint32]bool) []Vertex {
+	if currId == eId {
+		(*seen)[eId] = true
+		return []Vertex{g.Vertices[eId]}
+	} else {
+		(*seen)[currId] = true
+		for _, v := range g.AdjList[currId] {
+			if !(*seen)[v] {
+				l := g.PathRec(v, eId, seen)
+				if len(l) != 0 {
+					return append([]Vertex{g.Vertices[v]}, l...)
+				}
+			}
+		}
+	}
+	return []Vertex{}
+}
+
+func (g VGraph) Path(bId, eId uint32) []Vertex {
+	seen := map[uint32]bool{}
+	for k, _ := range g.Vertices {
+		seen[k] = false
+	}
+	l := append([]Vertex{g.Vertices[bId]}, g.PathRec(bId, eId, &seen)...)
+	fmt.Printf("\n%v\n", l)
+	return l
+}
