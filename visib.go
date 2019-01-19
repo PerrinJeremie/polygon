@@ -177,8 +177,8 @@ func (h UFHeap) Less(i, j int) bool {
 
 func (h UFHeap) Swap(i, j int) {
 	h[i], h[j] = h[j], h[i]
-	h[i].Index = j
-	h[j].Index = i
+	h[i].Index = i
+	h[j].Index = j
 	whereis[h[i].Id] = i
 	whereis[h[j].Id] = j
 }
