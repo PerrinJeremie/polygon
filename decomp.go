@@ -1,7 +1,7 @@
 package polygon
 
 import "sort"
-import "github.com/toravir/go-avl"
+import "mygo-avl"
 import "mathint"
 import "fmt"
 
